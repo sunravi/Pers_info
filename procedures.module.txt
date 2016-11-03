@@ -1,0 +1,263 @@
+
+
+Option Compare Database
+Option Explicit
+
+Function get_config(p_key As String) As String
+get_config = Trim(DLookup("key_value", "Config", "key = '" & p_key & "'"))
+End Function
+Sub setup_tempvars(batch As Recordset)
+    
+    TempVars!title = batch!Kriti & "-" & batch!Ragam & "-" & batch!Talam
+    TempVars!ipath = CurrentProject.Path & "\" & get_config("SourceFolder")
+    TempVars!filter = "kriti & '-' & ragam & '-' & talam = '" & TempVars!title & "'"
+    TempVars!abcoption = UCase(get_config("abcmidioption"))
+    TempVars!Kriti = CStr(batch!Kriti)
+    TempVars!Ragam = CStr(batch!Ragam)
+    TempVars!Talam = CStr(batch!Talam)
+    TempVars!beats_per_line = CDec(batch!beats_per_line)
+    TempVars!Nadai = DLookup("Matra", "Nadais", "Nadai = '" & batch!Nadai & "'")
+    TempVars!Jaathi = DLookup("Laghu", "Jathees", "Jaathi = '" & batch!Jathi & "'")
+    TempVars!abc_file = ""
+    TempVars!aro = Trim(DLookup("Arohanam", "Ragams", "Ragam='" & batch!Ragam & "'"))
+    TempVars!avaro = Trim(DLookup("Avarohanam", "Ragams", "Ragam='" & batch!Ragam & "'"))
+    TempVars!opath = CurrentProject.Path & "\" & get_config("NotationFolder")
+    TempVars!abcpath = CurrentProject.Path & "\" & get_config("abcmidifolder")
+    TempVars!strfilter = "kriti = '" & batch!Kriti & "' and " & _
+             "ragam = '" & batch!Ragam & "' and " & _
+             "talam = '" & batch!Talam & "'"
+    
+
+End Sub
+Function get_rates(field As String, dt As Date) As Variant
+Dim dct As Dictionary
+Dim rst As Recordset
+Set dct = New Dictionary
+Set rst = CurrentDb.OpenRecordset("" & _
+        "select * from rates " & _
+        "where eff_date <= " & SQLDate(dt) & _
+        "order by eff_date ")
+With rst
+.MoveLast
+dct.Add "pay_rate", !pay_rate
+dct.Add "tax_rate", !tax_rate
+dct.Add "al_rate", !al_rate
+dct.Add "lsl_rate", !lsl_rate
+dct.Add "sal_sac_super", !sal_sac_super
+dct.Add "super_rate", !super_rate
+dct.Add "tax_amount", !tax_amount
+End With
+get_rates = CVar(dct(field))
+End Function
+Sub process_leave(yr As Integer, action As String)
+Dim rst As Recordset
+Dim leave_bal As Recordset
+Dim al_clbal As Single, lsl_clbal As Single
+Set leave_bal = CurrentDb.OpenRecordset(" " & _
+    "select * from leaveBalance where " & _
+    "leave_year = " & yr)
+Set rst = CurrentDb.OpenRecordset(" " & _
+        "Select * from qryleave where " & _
+        " leave_year = " & leave_bal!leave_year)
+
+With leave_bal
+    If !Status = "Closed" Then Exit Sub
+    Set rst = CurrentDb.OpenRecordset(" " & _
+        "Select * from qryleave where " & _
+        " leave_year = " & leave_bal!leave_year)
+    .Edit
+    !al_acc = rst!al_acc
+    !lsl_acc = rst!lsl_acc
+    !Al_days = rst!Al_days
+    !al_hours = rst!al_hours
+    !Lsl_days = rst!Lsl_days
+    !lsl_hours = rst!lsl_hours
+    !al_clbal = !al_opbal + rst!al_ent - rst!al_hours
+    !lsl_clbal = !lsl_opbal + rst!lsl_ent - rst!lsl_hours
+    al_clbal = !al_clbal
+    lsl_clbal = !lsl_clbal
+    !Status = "Closed"
+    .Update
+    .AddNew
+    !leave_year = yr + 1
+    !al_opbal = al_clbal
+    !lsl_opbal = lsl_clbal
+    !Status = "Open"
+    .Update
+End With
+
+End Sub
+Sub process_period(rstin As Recordset)
+Dim rst As Recordset
+Dim reccount As Long
+Dim pay_rate As Single
+Dim anniversary As Date
+Dim ann_mth As Integer
+Dim leave_year As Integer
+anniversary = CDate(get_config("anniversary"))
+ann_mth = Month(anniversary)
+
+Set rst = CurrentDb.OpenRecordset("PayDocket")
+reccount = DCount("*", "PayDocket", "pay_period = " & rstin!Pay_period & " and pay_year = " & rstin!Pay_year)
+If reccount > 0 Then
+    MsgBox "Period exists in Pay Docket. Cannot process period"
+    Exit Sub
+End If
+pay_rate = get_rates("pay_rate", rstin!Start_date)
+With rst
+.AddNew
+!Pay_period = rstin!Pay_period
+!Pay_year = rstin!Pay_year
+!Start_date = rstin!Start_date
+!end_date = rstin!Start_date + CInt(get_config("PayperiodDays")) - 1
+!pay_date = rstin!Start_date + CInt(get_config("PayperiodDays")) + 1
+!Stip = rstin!Stip
+!gross = CVar(get_config("StandardHours")) * CVar(get_config("workdays")) * pay_rate + Nz(rstin!Stip, 0)
+!tax = get_rates("tax_amount", rstin!Start_date)
+'!tax = Round(!gross * get_rates("tax_rate", rstin!Start_date) / 100, 0)
+!sal_sac_super = get_rates("sal_sac_super", rstin!Start_date)
+!super_company = !gross * get_rates("super_rate", rstin!Start_date) / 100
+!leave_year = year(rstin!Start_date)
+If Month(!end_date) < ann_mth Then
+    !leave_year = !leave_year - 1
+End If
+!payment = !gross - !tax - !sal_sac_super
+!al_acc = Round(CVar(get_config("PayPerioddays")) / 7 * get_rates("al_rate", rstin!Start_date), 3)
+!lsl_acc = Round(CVar(get_config("PayPerioddays")) / 7 * get_rates("lsl_rate", rstin!Start_date), 3)
+get_leave_days !Start_date, !end_date, rst
+'!Al_days = Al_days
+'!Lsl_days = Lsl_days
+.Update
+End With
+End Sub
+Sub get_leave_days(startDt As Date, enddt As Date, rstin As Recordset)
+Dim rst As Recordset
+Dim date_from As Date, date_to As Date
+Dim anniversary As Date
+Dim service_yrs As Long
+Dim ro As Boolean, cleanro As Boolean
+Dim ann_dd As Integer, ann_mm As Integer
+Dim al_Totacc As Single, lsl_totacc As Single
+Dim Aldays As Integer, Lsldays As Integer
+Dim leave_year As Integer
+Aldays = 0
+Lsldays = 0
+anniversary = CDate(get_config("anniversary"))
+service_yrs = year(rstin!Start_date) - year(anniversary)
+ann_mm = Month(anniversary)
+ann_dd = Day(anniversary)
+anniversary = DateSerial(year(rstin!Start_date), ann_mm, ann_dd)
+cleanro = (rstin!Start_date = anniversary) 'clean rollover
+ro = ((Month(rstin!Start_date) + 1 = ann_mm) _
+        And (Month(rstin!end_date) = ann_mm))
+If ro Or cleanro Then
+   leave_year = year(rstin!Start_date) - 1
+End If
+    
+Set rst = CurrentDb.OpenRecordset("" & _
+        "select * from Leave where " & _
+        " (from >= " & SQLDate(startDt) & " and " & _
+        "from <= " & SQLDate(enddt) & ") or " & _
+        " (to >= " & SQLDate(startDt) & " and " & _
+        "to <= " & SQLDate(enddt) & ") or " & _
+        "(from < " & SQLDate(startDt) & " and " & _
+        " to > " & SQLDate(enddt) & ")")
+With rst
+Do While Not .EOF
+    date_from = rst!From
+    date_to = rst!To
+    If !From < rstin!Start_date Then 'leave start date before period
+        date_from = rstin!Start_date  'calc days from period beginning
+    End If
+    If !To > rstin!end_date Then    ' leave end date after period
+        date_to = rstin!end_date
+    End If
+    If !Al_days > 0 Then
+        Aldays = Aldays + calc_leavedays(date_from, date_to)
+    Else
+        Lsldays = Lsldays + calc_leavedays(date_from, date_to)
+    End If
+    .MoveNext
+Loop
+' if anniversary is fallin in this period
+
+rstin!Al_days = Aldays
+rstin!Lsl_days = Lsldays
+If ro Or cleanro Then
+    rstin!al_ent = CVar(get_config("AlHoursPerYear"))
+    rstin!lsl_ent = CVar(get_config("LslHoursPerYear"))
+    If cleanro Then
+        'rstin!al_Acc = 0
+        'rstin!lsl_Acc = 0
+        If service_yrs = 5 Then
+            rstin!lsl_ent = CVar(get_config("LslHoursPerYear")) * 5
+        ElseIf service_yrs > 5 Then
+            rstin!lsl_ent = CVar(get_config("LslHoursPerYear"))
+        End If
+    Else
+        al_Totacc = DSum("al_acc", "PayDocket", "leave_year = " & leave_year)
+        rstin!al_acc = al_Totacc + rstin!al_acc - rstin!al_ent
+        If service_yrs = 5 Then
+            lsl_totacc = DSum("Lsl_acc", "PayDocket", "leave_year <= " & leave_year)
+            rstin!lsl_ent = CVar(get_config("LslHoursPerYear")) * 5
+            rstin!lsl_acc = lsl_totacc + rstin!lsl_acc - rstin!lsl_ent
+        ElseIf service_yrs > 5 Then
+            lsl_totacc = DSum("Lsl_acc", "PayDocket", "leave_year = " & leave_year)
+            rstin!lsl_ent = CVar(get_config("LslHoursPerYear"))
+            rstin!lsl_acc = lsl_totacc + rstin!lsl_acc - rstin!lsl_ent
+        End If
+    End If
+End If
+End With
+End Sub
+Function calc_leavedays(start_dt As Date, end_dt As Date) As Integer
+Dim intCount As Long
+Dim date_from As Date
+intCount = 0
+date_from = start_dt
+Do While date_from <= end_dt
+
+Select Case Weekday(date_from)
+   Case Is = 1, 7
+      intCount = intCount
+   Case Is = 2, 3, 4, 5, 6
+      intCount = intCount + 1
+End Select
+
+date_from = date_from + 1
+
+Loop
+intCount = intCount - DCount("*", "calendar", "cal_date between " & _
+        SQLDate(start_dt) & " And " & SQLDate(end_dt) & " and " & _
+        "pub_holiday = -1")
+calc_leavedays = intCount
+
+End Function
+Function SQLDate(varDate As Variant) As String
+    'Purpose:    Return a delimited string in the date format used natively by JET SQL.
+    'Argument:   A date/time value.
+    'Note:       Returns just the date format if the argument has no time component,
+    '                or a date/time format if it does.
+    'Author:     Allen Browne. allen@allenbrowne.com, June 2006.
+    If IsDate(varDate) Then
+        If DateValue(varDate) = varDate Then
+            SQLDate = Format$(varDate, "\#mm\/dd\/yyyy\#")
+        Else
+            SQLDate = Format$(varDate, "\#mm\/dd\/yyyy hh\:nn\:ss\#")
+        End If
+    End If
+End Function
+Function search_array(arr As Variant, column As Long, what As Variant, found As Boolean) As Long
+Dim M As Long
+
+found = False
+search_array = 0
+For M = LBound(arr, 1) To UBound(arr, 1)
+    If arr(M, column) = what Then
+       search_array = M
+       found = True
+       Exit For
+    End If
+Next M
+
+End Function

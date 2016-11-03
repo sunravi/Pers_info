@@ -1,0 +1,2 @@
+<?xml version="1.0"?>
+<Relations><Relation><Name>AssetsAsset_Events</Name><Attributes>0</Attributes><Table>Assets</Table><ForeignTable>Asset_Events</ForeignTable><Field><Name>ID</Name><ForeignName>Asset_id</ForeignName></Field></Relation><Relation><Name>TransactionsItems</Name><Attributes>4352</Attributes><Table>Transactions</Table><ForeignTable>Items</ForeignTable><Field><Name>ID</Name><ForeignName>Tr_id</ForeignName></Field></Relation></Relations>
