@@ -76,6 +76,15 @@
 </xsd:simpleType>
 </xsd:element>
 <xsd:element name="Leave_year" minOccurs="0" od:jetType="longinteger" od:sqlSType="int" type="xsd:int"/>
+<xsd:element name="Super_year" minOccurs="0" od:jetType="longinteger" od:sqlSType="int" type="xsd:int"/>
+<xsd:element name="Super_period" minOccurs="0" od:jetType="decimal" od:sqlSType="decimal">
+<xsd:simpleType>
+<xsd:restriction base="xsd:decimal">
+<xsd:totalDigits value="2"/>
+<xsd:fractionDigits value="0"/>
+</xsd:restriction>
+</xsd:simpleType>
+</xsd:element>
 </xsd:sequence>
 </xsd:complexType>
 </xsd:element>

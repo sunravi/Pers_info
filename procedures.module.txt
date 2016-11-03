@@ -3,9 +3,9 @@
 Option Compare Database
 Option Explicit
 
-Function get_config(p_key As String) As String
-get_config = Trim(DLookup("key_value", "Config", "key = '" & p_key & "'"))
-End Function
+'Function get_config(p_key As String) As String
+'get_config = Trim(DLookup("key_value", "Config", "key = '" & p_key & "'"))
+'End Function
 Sub setup_tempvars(batch As Recordset)
     
     TempVars!title = batch!Kriti & "-" & batch!Ragam & "-" & batch!Talam
@@ -23,7 +23,7 @@ Sub setup_tempvars(batch As Recordset)
     TempVars!avaro = Trim(DLookup("Avarohanam", "Ragams", "Ragam='" & batch!Ragam & "'"))
     TempVars!opath = CurrentProject.Path & "\" & get_config("NotationFolder")
     TempVars!abcpath = CurrentProject.Path & "\" & get_config("abcmidifolder")
-    TempVars!strfilter = "kriti = '" & batch!Kriti & "' and " & _
+    TempVars!Strfilter = "kriti = '" & batch!Kriti & "' and " & _
              "ragam = '" & batch!Ragam & "' and " & _
              "talam = '" & batch!Talam & "'"
     
@@ -55,19 +55,23 @@ Dim leave_bal As Recordset
 Dim al_clbal As Single, lsl_clbal As Single
 Set leave_bal = CurrentDb.OpenRecordset(" " & _
     "select * from leaveBalance where " & _
-    "leave_year = " & yr)
-Set rst = CurrentDb.OpenRecordset(" " & _
-        "Select * from qryleave where " & _
-        " leave_year = " & leave_bal!leave_year)
+    "leave_year = " & yr & " and status = ""Open""")
+    
+' check if leave rollover is already done
+If leave_bal.RecordCount = 0 Then Exit Sub
+'
+'Set rst = CurrentDb.OpenRecordset(" " & _
+'        "Select * from qryleave where " & _
+'        " leave_year = " & leave_bal!leave_year)
 
 With leave_bal
     If !Status = "Closed" Then Exit Sub
     Set rst = CurrentDb.OpenRecordset(" " & _
         "Select * from qryleave where " & _
-        " leave_year = " & leave_bal!leave_year)
+        " leave_year = " & leave_bal!Leave_year)
     .Edit
-    !al_acc = rst!al_acc
-    !lsl_acc = rst!lsl_acc
+    !al_acc = Round(rst!al_acc, 3)
+    !lsl_acc = Round(rst!lsl_acc, 3)
     !Al_days = rst!Al_days
     !al_hours = rst!al_hours
     !Lsl_days = rst!Lsl_days
@@ -79,7 +83,7 @@ With leave_bal
     !Status = "Closed"
     .Update
     .AddNew
-    !leave_year = yr + 1
+    !Leave_year = yr + 1
     !al_opbal = al_clbal
     !lsl_opbal = lsl_clbal
     !Status = "Open"
@@ -93,7 +97,7 @@ Dim reccount As Long
 Dim pay_rate As Single
 Dim anniversary As Date
 Dim ann_mth As Integer
-Dim leave_year As Integer
+Dim Leave_year As Integer
 anniversary = CDate(get_config("anniversary"))
 ann_mth = Month(anniversary)
 
@@ -117,9 +121,9 @@ With rst
 '!tax = Round(!gross * get_rates("tax_rate", rstin!Start_date) / 100, 0)
 !sal_sac_super = get_rates("sal_sac_super", rstin!Start_date)
 !super_company = !gross * get_rates("super_rate", rstin!Start_date) / 100
-!leave_year = year(rstin!Start_date)
+!Leave_year = year(rstin!Start_date)
 If Month(!end_date) < ann_mth Then
-    !leave_year = !leave_year - 1
+    !Leave_year = !Leave_year - 1
 End If
 !payment = !gross - !tax - !sal_sac_super
 !al_acc = Round(CVar(get_config("PayPerioddays")) / 7 * get_rates("al_rate", rstin!Start_date), 3)
@@ -127,6 +131,17 @@ End If
 get_leave_days !Start_date, !end_date, rst
 '!Al_days = Al_days
 '!Lsl_days = Lsl_days
+'
+' calculate supwe_year and period based on end_date
+'
+!super_period = Month(!end_date) + 1 - 6
+If !super_period <= 0 Then
+    !super_period = !super_period + 12
+End If
+!super_year = !Pay_year
+If !super_period = 1 Then
+    !super_year = !Pay_year + 1
+End If
 .Update
 End With
 End Sub
@@ -139,7 +154,7 @@ Dim ro As Boolean, cleanro As Boolean
 Dim ann_dd As Integer, ann_mm As Integer
 Dim al_Totacc As Single, lsl_totacc As Single
 Dim Aldays As Integer, Lsldays As Integer
-Dim leave_year As Integer
+Dim Leave_year As Integer
 Aldays = 0
 Lsldays = 0
 anniversary = CDate(get_config("anniversary"))
@@ -151,7 +166,7 @@ cleanro = (rstin!Start_date = anniversary) 'clean rollover
 ro = ((Month(rstin!Start_date) + 1 = ann_mm) _
         And (Month(rstin!end_date) = ann_mm))
 If ro Or cleanro Then
-   leave_year = year(rstin!Start_date) - 1
+   Leave_year = year(rstin!Start_date) - 1
 End If
     
 Set rst = CurrentDb.OpenRecordset("" & _
@@ -195,14 +210,14 @@ If ro Or cleanro Then
             rstin!lsl_ent = CVar(get_config("LslHoursPerYear"))
         End If
     Else
-        al_Totacc = DSum("al_acc", "PayDocket", "leave_year = " & leave_year)
+        al_Totacc = DSum("al_acc", "PayDocket", "leave_year = " & Leave_year)
         rstin!al_acc = al_Totacc + rstin!al_acc - rstin!al_ent
         If service_yrs = 5 Then
-            lsl_totacc = DSum("Lsl_acc", "PayDocket", "leave_year <= " & leave_year)
+            lsl_totacc = DSum("Lsl_acc", "PayDocket", "leave_year <= " & Leave_year)
             rstin!lsl_ent = CVar(get_config("LslHoursPerYear")) * 5
             rstin!lsl_acc = lsl_totacc + rstin!lsl_acc - rstin!lsl_ent
         ElseIf service_yrs > 5 Then
-            lsl_totacc = DSum("Lsl_acc", "PayDocket", "leave_year = " & leave_year)
+            lsl_totacc = DSum("Lsl_acc", "PayDocket", "leave_year = " & Leave_year)
             rstin!lsl_ent = CVar(get_config("LslHoursPerYear"))
             rstin!lsl_acc = lsl_totacc + rstin!lsl_acc - rstin!lsl_ent
         End If
@@ -261,3 +276,23 @@ For M = LBound(arr, 1) To UBound(arr, 1)
 Next M
 
 End Function
+Sub update_asset_bal()
+Dim rst As Recordset, rstsub As Recordset
+Dim bal_qty As Single
+Set rst = CurrentDb.OpenRecordset(" " & _
+        "select * from Assets " & _
+        "where type = 'MF' ")
+        
+With rst
+    Do While Not .EOF
+    bal_qty = DSum("Quantity", "Asset_events", "Asset_id = " & rst!ID & "and Qty_flag = 'Q' ")
+    If Not IsNull(bal_qty) Then
+    .Edit
+    !Quantity = bal_qty
+    .Update
+    End If
+    .MoveNext
+    Loop
+End With
+
+End Sub
